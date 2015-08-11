@@ -1,5 +1,5 @@
 (defproject reagent-plug "0.1.0-SNAPSHOT"
-  :description "FIXME: write description"
+  :description "PoC for Reagent 'pluggable' components"
   :url "http://example.com/FIXME"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
