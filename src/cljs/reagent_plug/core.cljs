@@ -1,6 +1,7 @@
 (ns reagent-plug.core
   (:require-macros [cljs.core.async.macros :refer [go go-loop]]
-                   [reagent-plug.util :refer [spy]])
+                   [reagent-plug.util :refer [spy]]
+                   [reagent-plug.core.macros :refer [plugged-cpnt defplugged]])
   (:require [reagent.core :as r :refer [atom]]
             [cljs.core.async :as a]
             [cljs.core.match :refer-macros [match]]
@@ -38,6 +39,7 @@ See <lang-results-cpnt> below for an example."
            (->> plugs (remove nil?) (map cleanup!) doall))
          :reagent-render
          (fn [& args]
+           (.log js/console "Rendering again")
            (let [new-args (->> (concat plugs (repeat nil))
                                (map (fn [arg plug]
                                       (if (nil? plug) arg (injected-arg plug))) args)
@@ -224,7 +226,23 @@ Returns a channel piped to =in= that will periodically return the last element t
                   "Supprimer"]]]))
       )))
 
-
+;; here is a less noisy version using some macro sugar
+(defplugged <lang-results-cpnt-bis>
+  [lang
+   state-a
+   (=sentence-changes= [::a/atom-watch #(a/chan 1 (map last))])
+   sentence-c
+   (=c= [::a/local-chan])]
+  (let [local-state (r/atom {:pending true :translation nil})]
+    (start-translate-machine! lang sentence-c =sentence-changes= =c= local-state)
+    (fn []
+      [:div
+       [:h4 (:name lang)]
+       (if (:pending @local-state)
+         [:div "fetching translation..."]
+         [:div "translation : " (str (get-in @local-state [:translation :responseData :translatedText]))])
+       [:div [:button.btn.btn-danger {:on-click (fn [_] (swap! state-a update :languages #(remove #{lang} %)))}
+              "Supprimer"]]])))
 
 
 (defn home-page []
