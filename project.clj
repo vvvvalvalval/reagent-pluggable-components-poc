@@ -19,7 +19,9 @@
                  [org.clojure/clojurescript "1.7.48"]
 
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [org.clojure/core.match "0.3.0-alpha4"]]
+                 [org.clojure/core.match "0.3.0-alpha4"]
+                 [prismatic/dommy "1.1.0"]
+                 [cljs-ajax "0.3.14"]]
 
   :plugins [[lein-environ "1.0.0"]
             [lein-asset-minifier "0.2.2"]]

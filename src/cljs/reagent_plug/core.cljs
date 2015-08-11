@@ -3,168 +3,114 @@
   (:require [reagent.core :as reagent :refer [atom]]
             [cljs.core.async :as a]
             [cljs.core.match :refer-macros [match]]
-            [cljs.pprint :as pprint])
+            [cljs.pprint :as pprint]
+            [ajax.core :as ajx])
   (:import goog.History))
 
-;; -------------------------
-;; Views
+(defprotocol IPlug
+  (injected-arg [this])
+  (setup! [this])
+  (cleanup! [this]))
 
+(defrecord Plug [injected setup! cleanup!]
+  IPlug
+  (injected-arg [this] (:injected this))
+  (setup! [this] ((:setup! this)))
+  (cleanup! [this] ((:cleanup! this))))
 
-(def =global-input= (a/chan))
-(def global-input< (a/mult =global-input=))
+(defmulti make-plug ^IPlug (fn [spec arg] (first spec)))
 
-(def =global-output= (a/chan))
+(defmethod make-plug ::a/tap [[_ & [chan-factory]] mult]
+  (let [c (if chan-factory (chan-factory) (a/chan))]
+    (->Plug c #(a/tap mult c false) #(a/untap mult c))))
 
-(def output-log (reagent/atom []))
-(go-loop
-  [i 0]
-  (when-let [m (a/<! =global-output=)]
-    (swap! output-log conj {:i i :m m})
-    (recur (inc i))))
+(def ^:private gen-watch-key
+  (let [next-int (atom 0)]
+    (fn [] (keyword "reagent-plug.core" (str "watch-key-" (swap! next-int inc))))))
 
-(declare
-  <global-input>
-  <stateful-container>
-    <stateful-1>
-    <stateful-2>
-    <stateful-3> <stateful-3-container>
-  <output-log>)
+(defmethod make-plug ::a/atom-watch [[_ & [chan-factory]] atm]
+  (let [c ((or chan-factory a/chan))
+        key (gen-watch-key)]
+    (->Plug c
+            #(add-watch atm key (fn [& args] (a/put! c args)))
+            #(remove-watch atm key))
+    ))
 
-(defn <global-input> []
-  (let [text (reagent/atom "")]
-    (fn []
-      [:div
-       [:h2 "Global Input"]
-       [:form.form-inline
-        [:div.form-group [:input.form-control {:type "text" :value @text :on-change #(reset! text (-> % .-target .-value))}]]
-        [:button {:type "submit" :class "btn btn-primary" :on-click #(do (a/put! =global-input= [:text @text])
-                                                                         (reset! text ""))} "Send text"]
-        [:button {:class "btn btn-default" :on-click #(a/put! =global-input= [:button1])} "Button 1"]
-        [:button {:class "btn btn-default" :on-click #(a/put! =global-input= [:button2])} "Button 2"]]]
-      )))
+(defmethod make-plug ::a/local-chan [[_ & [chan-factory]] _]
+  (let [c ((or chan-factory a/chan))]
+    (->Plug c #(do nil) #(a/close! c))))
 
-(defn <stateful-container> [child]
-  (let [state (reagent/atom true)]
-    (fn []
-      [:div.panel
-       [:div.panel-heading "Stateful Container"]
-       [:div.panel-body
-        [:div.row
-         [:div.col-sm-3
-          [:input {:type "checkbox" :checked @state :on-change #(do (swap! state not) :dummy)}]
-          "Display child"]
-         [:div.col-sm-9 (when @state [child])]]]])))
-
-(defn <stateful-1> []
-  (let [=input= (let [c (a/chan 1 (map (fn [m] {:through :stateful-1 :received m})))]
-                  (a/tap global-input< c) c)]
-    (a/pipe =input= =global-output= false)
-    (fn []
-      [:div
-       [:h4 "Stateful component"]
-       [:p "I pipe input to output before I get mounted"]])))
-
-(defn <stateful-2> []
-  (let [=input= (a/chan 1 (map (fn [m] {:through :stateful-2 :received m})))]
-    (reagent/create-class
-      {:display-name "<stateful-2>"
-       :component-will-mount (fn [& args]
-                               #_(a/put! =global-output= ["<stateful-2> will mount: " (reagent/argv (first args)) args])
-                               (a/tap global-input< =input=)
-                               (a/pipe =input= =global-output= false))
-       :component-will-unmount (fn [& args]
-                                 #_(a/put! =global-output= ["<stateful-2> will unmount: " (reagent/argv (first args)) args])
-                                 (a/untap global-input< =input=)
-                                 (a/close! =input=))
-       :reagent-render (fn []
-                         [:div
-                          [:h4 "Stateful component 2"]
-                          [:p "I pipe to the output but use lefecycle methods"]])})))
+(defmethod make-plug ::reagent/cursor [[_ path] ratom]
+  (let [curs (reagent/cursor ratom path)]
+    (->Plug curs #(do nil) #(reset! curs nil))))
 
 (defn pluggable [specs cpn]
-  (fn [& ags]
-    (let [plugs (->> specs
-                     (map (fn [spec]
-                            (match [spec]
-                                   [nil] nil
-                                   [[:tap]] (a/chan 1)
-                                   [[:pipe]] (a/chan 1)
-                                   :else nil)
-                            ))
-                     vec)]
+  (fn [& args]
+    (let [plugs (map (fn [arg spec] (if (nil? spec) nil (make-plug spec arg))) specs args)]
       (.log js/console "Created plugs")
       (reagent/create-class
         {:display-name "pluggable-wrapper"
          :component-will-mount
          (fn [this]
-           (let [args (drop 1 (reagent/argv this))]
-             (->> specs (map (fn [arg plug spec]
-                               (match [spec arg plug]
-                                      [nil _ _] nil
-                                      [[:tap] m c] (a/tap m c)
-                                      [[:pipe] to c] (a/pipe c to false)
-                                      :else nil)
-                               ) args plugs) doall)
-             ))
+           (->> plugs (remove nil?) (map setup!) doall))
          :component-will-unmount
          (fn [this]
-           (let [args (drop 1 (reagent/argv this))]
-             (->> specs (map (fn [arg plug spec]
-                               (match [spec arg plug]
-                                      [nil _ _] nil
-                                      [[:tap] m c] (do (a/untap m c) (a/close! c) #_(.log js/console "Untapped" m c))
-                                      [[:pipe] to c] (do (a/close! c) #_(.log js/console "Closed pipe" to c))
-                                      :else nil)
-                               ) args plugs) doall)
-             ))
+           (->> plugs (remove nil?) (map cleanup!) doall))
          :reagent-render
          (fn [& args]
            (let [new-args (->> (concat plugs (repeat nil))
                                (map (fn [arg plug]
-                                      (match [plug arg]
-                                             [nil a] a
-                                             [p _] p)) args)
+                                      (if (nil? plug) arg (injected-arg plug))) args)
                                )]
              (into [cpn] new-args)))
          }))))
 
-(defn <stateful-3>* [=input= =global-output=]
-  (let [c (a/chan 1 (map (fn [m] {:through :stateful-3 :received m})))]
-    (a/pipe =input= c false)
-    (a/pipe c =global-output= false)
-    (.log js/console "Done init")
-    (fn []
-      [:div
-       [:h4 "Stateful component 3"]
-       [:p "I get injected stuff"]])))
-(def <stateful-3> (pluggable [[:tap] [:pipe]] <stateful-3>*))
 
-(defn <stateful-3-container> []
-  [<stateful-3> global-input< =global-output=])
+;; -------------------------
+;; Example
 
-(defn <output-log> []
-  [:div {:style {:max-height "400px" :overflow-y "scroll"}}
-   [:h2 "Output log"]
-   [:div
-    (for [{:keys [i m]} (->> @output-log reverse)]
-      ^{:key i} [:div.row
-                 [:div.col-xs-2 [:strong (str "#" i " : ")]]
-                 [:div.col-xs-10 [:pre (with-out-str (pprint/pprint m))]]
-                 ])]])
+(enable-console-print!)
 
-(go (a/>! =global-output= {:message "salut"}))
+(defn find-translation [target-language sentence]
+  (let [c (a/chan)]
+    (.log js/console "calling...")
+    (ajx/GET "http://api.mymemory.translated.net/get"
+             {:response-format :json :format :json :keywords? true
+              :params {:q sentence
+                       :langpair (str "en" "|" target-language)}
+              :handler #(a/put! c %)
+              :error-handler #(a/close! c)})
+    c))
+
+(go (.log js/console (a/<! (find-translation "fr" "Good Morning"))))
+
+#_(defn call-api "Calls BandSquare API with the specified"
+  [method path body & [opts]]
+  (let [resp-chan (a/chan 1)]
+    ((get fn-of-method method) (str api-prefix path)
+      (merge {:response-format :json :format :json :keywords? true
+              :params body
+              :handler #(a/put! resp-chan {:outcome :success :data %})
+              :error-handler #(a/put! resp-chan {:outcome :error :data %})
+              :with-credentials true
+              } opts))
+    resp-chan))
+
+
+
+(declare
+  <global-input>
+  <stateful-container>
+  <stateful-1>
+  <stateful-2>
+  <stateful-3> <stateful-3-container>
+  <output-log>)
+
 
 (defn home-page []
   [:div.container
    [:h2 "Welcome to reagent-plug"]
-   [:div.row
-    [:div.col-md-6
-     [<global-input>]
-     [<stateful-container> <stateful-1>]
-     [<stateful-container> <stateful-2>]
-     [<stateful-container> <stateful-3-container>]]
-    [:div.col-md-6
-     [<output-log>]]]])
+   ])
 
 ;; -------------------------
 ;; Initialize app
