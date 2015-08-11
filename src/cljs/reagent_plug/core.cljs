@@ -180,22 +180,21 @@ Returns a channel piped to =in= that will periodically return the last element t
 
 (defn- start-translate-machine! "Starts a process that manages the state of a <lang-result-cpnt>"
   [lang sentence-c =sentence-changes= =c= local-state]
-  (go
-    (let [=sentence-changes= (rarefied =sentence-changes= 1000)]
-      (go
-        #_ (.log js/console (str "Starting loop for" (:name lang) "..."))
-        (loop [sentence @sentence-c
-               =translate-result= (find-translation (:id lang) sentence)]
-          (match [(a/alts! [=sentence-changes= =c= =translate-result=])]
-            [[nil =translate-result=]] (.log js/console "Failed to fetch translation")
-            [[nil _]] nil ;; thanks to pluggable a channel that closes means the component unmounted
-            [[data =translate-result=]] (do (swap! local-state assoc :translation data :pending false)
-                                            (recur sentence (a/chan)))
-            [[sentence =sentence-changes=]] (recur sentence (a/chan)) ;; déjà vu
-            [[new-sentence =sentence-changes=]] (do (swap! local-state assoc :translation nil :pending true)
-                                                    (recur new-sentence (find-translation (:id lang) new-sentence)))
-            )))
-      )))
+  (let [=sentence-changes= (rarefied =sentence-changes= 1000)]
+    (go
+      #_ (.log js/console (str "Starting loop for" (:name lang) "..."))
+      (loop [sentence @sentence-c
+             =translate-result= (find-translation (:id lang) sentence)]
+        (match [(a/alts! [=sentence-changes= =c= =translate-result=])]
+          [[nil =translate-result=]] (.log js/console "Failed to fetch translation")
+          [[nil _]] nil ;; thanks to pluggable a channel that closes means the component unmounted
+          [[data =translate-result=]] (do (swap! local-state assoc :translation data :pending false)
+                                          (recur sentence (a/chan)))
+          [[sentence =sentence-changes=]] (recur sentence (a/chan)) ;; déjà vu
+          [[new-sentence =sentence-changes=]] (do (swap! local-state assoc :translation nil :pending true)
+                                                  (recur new-sentence (find-translation (:id lang) new-sentence)))
+          )))
+    ))
 
 (def <lang-results-cpnt>
   (pluggable
@@ -230,7 +229,7 @@ Returns a channel piped to =in= that will periodically return the last element t
 
 (defn home-page []
   [:div.container
-   [:h2 "Welcome to reagent-plug"]
+   [:h1 "Welcome to reagent-plug"]
    [<top-cpnt>]])
 
 ;; -------------------------

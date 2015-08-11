@@ -24,7 +24,8 @@
                  [cljs-ajax "0.3.14"]]
 
   :plugins [[lein-environ "1.0.0"]
-            [lein-asset-minifier "0.2.2"]]
+            [lein-asset-minifier "0.2.2"]
+            [lein-ring "0.9.6"]]
 
   :ring {:handler reagent-plug.handler/app
          :uberwar-name "reagent-plug.war"}
