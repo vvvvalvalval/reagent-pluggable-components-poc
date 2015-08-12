@@ -86,4 +86,4 @@ In this repository comes [a less trivial example](https://github.com/vvvvalvalva
 It is a small app that fetches translations for the text you type in English in several languages.
 Fetching a translation is a component-local process which starts and stops automatically as you add and remove languages. 
 
-You can see it in action [here](http://reagent-plug-poc.s3-website-us-east-1.amazonaws.com).
+You can see it working [here](http://reagent-plug-poc.s3-website-us-east-1.amazonaws.com).
