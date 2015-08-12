@@ -90,4 +90,15 @@
                                              {:source-paths ["env/prod/cljs"]
                                               :compiler
                                               {:optimizations :advanced
-                                               :pretty-print false}}}}}})
+                                               :pretty-print false}}}}}
+             
+             :prod {;:hooks [leiningen.cljsbuild minify-assets.plugin/hooks]
+                    :env {:production true}
+                    :aot :all
+                    :omit-source true
+                    :cljsbuild {:builds {:app2 {:source-paths ["env/prod/cljs" "src/cljs"]
+                                                :compiler {:output-to     "target/js/app.js"
+                                                           :output-dir    "target/js/out"
+                                                           :asset-path   "js/out"
+                                                           :optimizations :advanced
+                                                           :pretty-print  false}}}}}})
