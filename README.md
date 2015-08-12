@@ -1,6 +1,6 @@
 This repository explores some ideas about a certain kind of stateful Reagent components, which I call "pluggable" components here.
 
-We provide a concise, declarative way of writing Reagent components that have setup and cleanup phases, without writing React lifecycle methods.
+We provide a concise, declarative way of writing Reagent components that have setup and cleanup phases, ***without explicitely writing React lifecycle methods***.
 This can be useful, for example, to write components that communicate through core.async channels.
 
 ### Basic Example
