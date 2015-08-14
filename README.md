@@ -1,7 +1,7 @@
 This repository explores some ideas about a certain kind of stateful Reagent components, which I call "pluggable" components here.
 
 We provide a concise, declarative way of writing Reagent components that have setup and cleanup phases, ***without explicitely writing React lifecycle methods***.
-This can be useful, for example, to write components that communicate through core.async channels.
+This can be useful, for example, to write components that communicate through core.async channels (typically to bubble up events).
 
 ### Basic Example
 
@@ -62,7 +62,7 @@ If for some reason you have some components that are connected to the rest of yo
 You can write your own "plug recipes" using the `make-plug` multimethods. For example, writing the `::async/pubsub` recipe from the example above is as easy as:
 ```clojure
 (defmethod make-plug ::async/sub [[_ topic] pub]
-  (let [local-chan (a/chan)]
+  (let [local-chan (async/chan)]
     (->Plug local-chan 
             #(async/sub pub topic local-chan)
             #(do (async/unsub pub topic local-chan) (async/close! local-chan)))))
