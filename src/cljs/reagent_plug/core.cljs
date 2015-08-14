@@ -20,7 +20,6 @@
 
 (defmulti make-plug ^IPlug (fn [spec arg] (first spec)))
 
-
 (defn pluggable
   "Uses specs (a seq of clauses, which are vectors starting with a keyword) to transform a stateful Reagent component into a 'plugged' component.
 The arguments the component will receive are not those passed by the parent component, but 'injected' arguments that have a stateful relationship to them.
@@ -82,6 +81,10 @@ See <lang-results-cpnt> below for an example."
 (defmethod make-plug ::r/cursor [[_ path] ratom]
   (let [curs (r/cursor ratom path)]
     (->Plug curs #(do nil) #(reset! curs nil))))
+
+(defmethod make-plug ::async/pipe-up [[_] parent-chan]
+  (let [local-chan (async/chan)]
+    (->Plug local-chan #(async/pipe local-chan parent-chan false) #(async/close! local-chan))))
 
 ;; you could also imagine implementations for EventTargets, bacon.js streams etc.
 
