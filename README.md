@@ -59,7 +59,7 @@ If for some reason you have some components that are connected to the rest of yo
 
 ## Extensibility
 
-You can write your own "plug recipes" using the `make-plug` multimethods. For example, writing the `::async/pubsub` recipe from the example above is as easy as:
+You can write your own "plug recipes" using the `make-plug` multimethods. For example, writing the `::async/sub` recipe from the example above is as easy as:
 ```clojure
 (defmethod make-plug ::async/sub [[_ topic] pub]
   (let [local-chan (async/chan)]
