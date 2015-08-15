@@ -70,7 +70,8 @@ You can write your own "plug recipes" using the `make-plug` multimethods. For ex
 
 Implementations have been provided in this repository for a few use cases :
 
-* tapping into a `mult`
+* tapping into a core.async `mult`
+* piping a local core.async channel to a channel from the parent (useful for 'bubbling up' events)
 * getting a Reagent `cursor` from a `ratom`, and resetting the `cursor` to nil when unmounting
 * getting a core.async channel that receives the changes from an IRef (using `add-watch`)
 * getting a local core.async channel which will be closed when unmounting
