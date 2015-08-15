@@ -60,6 +60,11 @@ See <lang-results-cpnt> below for an example."
   (let [c (if chan-factory (chan-factory) (a/chan))]
     (->Plug c #(a/tap mult c false) #(a/untap mult c))))
 
+;; the initial argument is a channel, the injected argument is a channel piped to the original channel. Use it e.g to bubble up events.
+(defmethod make-plug ::a/pipe-up [[_] parent-chan]
+  (let [local-chan (a/chan)]
+    (->Plug local-chan #(a/pipe local-chan parent-chan false) #(a/close! local-chan))))
+
 (def ^:private gen-watch-key
   (let [next-int (atom 0)]
     (fn [] (keyword "reagent-plug.core" (str "watch-key-" (swap! next-int inc))))))
@@ -81,10 +86,6 @@ See <lang-results-cpnt> below for an example."
 (defmethod make-plug ::r/cursor [[_ path] ratom]
   (let [curs (r/cursor ratom path)]
     (->Plug curs #(do nil) #(reset! curs nil))))
-
-(defmethod make-plug ::async/pipe-up [[_] parent-chan]
-  (let [local-chan (async/chan)]
-    (->Plug local-chan #(async/pipe local-chan parent-chan false) #(async/close! local-chan))))
 
 ;; you could also imagine implementations for EventTargets, bacon.js streams etc.
 
